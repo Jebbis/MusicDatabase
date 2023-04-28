@@ -1,59 +1,60 @@
-var express = require("express");
+// Importataan tarvittavat paketit
+const express = require("express");
 const bodyParser = require("body-parser");
-var mongoose = require("mongoose");
-require("dotenv").config();
+const mongoose = require("mongoose");
+require("dotenv").config(); // Haetaan tiedot Mongodb apiin .env tiedostosta
 
-var app = express();
+// Luodaan express appi
+const app = express();
 
+// Haetaan Mongodb model kappaleille
 const Song = require("./modules/model");
 
+// Haetaan tietokannan URI .env tiedostosta
 const uri = process.env.DB_URI;
 
+// Haetaan portti .env tiedostosta tai jos sitä ei ole käytä porttia 5000
 const PORT = process.env.PORT || 5000;
 
+// Otetaan bodyparser käyttöön JSON lukemista varten
 app.use(bodyParser.json());
-//app.use(bodyParser.urlencoded({ extended: true }));
+
+// Yhdistetään tietokantaan
 const client = mongoose.connect(uri, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 });
 
-//Find 10 songs from database
-
-app.get("/api/songs", function (req, res) {
-  async function connect() {
-    try {
-      const songs = await Song.find({}).limit(10);
-      console.log("Songs found...");
-      res.status(200).json(songs);
-    } catch (error) {
-      res.status(500).json("Connection error");
-      console.error(
-        `Connection error: ${error.stack} on Worker process: ${process.pid}`
-      );
-    } finally {
-      console.log("Job done...");
-    }
+//Haetaan tietokannasta kappaleita ja rajoitetaan se 10 tulokseen ".limit(10) avulla"
+// Jos kappaleiden löytämisessä tulee virhe, lähetetään statuskoodi 500.
+app.get("/api/songs", async (req, res) => {
+  try {
+    const songs = await Song.find({}).limit(10);
+    console.log("Songs found...");
+    res.status(200).json(songs);
+  } catch (error) {
+    res.status(500).json("Connection error");
+  } finally {
+    console.log("Job done...");
   }
-  connect();
 });
 
-// Find song by objectID
-
+// Etsitään kappale tietokannasta. Käytetään findById komentoa tähän.
+// Jos kappaleen löytämisessä tulee virhe tai kappaletta ei ole, lähetetään statuskoodi 400 tai 500.
+// Muussa tapauksessa näytetään kappaleentiedot ja ilmoitetaan siitä statuskoodilla 200
 app.get("/api/:id", async (req, res) => {
   try {
     const song = await Song.findById(req.params.id);
     if (!song) {
       return res.status(404).json({ message: "Song not found" });
     }
-    res.json(song);
+    res.status(200).json(song);
   } catch (err) {
-    console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 });
 
-// add song to the database
+// Lisätään uusi kappale tietokantaan käyttäen samaa modelia mikä on määritelty model.js tiedostossa
 app.post("/api/add", function (req, res) {
   const { id, name, artist, playcount } = req.body;
   const song = new Song({
@@ -63,6 +64,9 @@ app.post("/api/add", function (req, res) {
     playcount,
   });
 
+  // lisätään kappaleen tietokantaan. Käytetään findByIdAndUpdate komentoa tähän.
+  // Jos kappaleen lisäämiesssä tulee virhe, lähetetään statuskoodi 500.
+  // Muussa tapauksessa päivtetään kappaleentiedot ja ilmoitetaan siitä statuskoodilla 200
   async function connect() {
     try {
       await song.save();
@@ -78,24 +82,28 @@ app.post("/api/add", function (req, res) {
   connect();
 });
 
-// Update a song by ID
+// Päivtetään kappaleen tietoja ID:n avulla. Käytetään findByIdAndUpdate komentoa tähän.
+// Jos kappaletta ei löydy tai tulee virhe, lähetetään statuskoodi 400 tai 500.
+// Muussa tapauksessa päivtetään kappaleentiedot ja ilmoitetaan siitä statuskoodilla 200
 app.put("/api/update/:id", async (req, res) => {
   try {
     const song = await Song.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
     });
     if (!song) return res.status(404).json("Song not found");
-    res.status(200).json(song);
+    res.status(200).json("Song updated");
   } catch (error) {
     res.status(500).json("Error adding song");
   }
 });
 
-// Delete a song by ID
+// Poistetaan kappale ID:n avulla. Käytetään findByIdAndDelete komentoa tähän.
+// Jos kappaletta ei löydy tai tulee virhe, lähetetään statuskoodi 400 tai 500.
+// Muussa tapauksessa poistetaan kappale ja ilmoitetaan siitä statuskoodilla 200
 app.delete("/api/delete/:id", async (req, res) => {
   try {
-    const deletedSong = await Song.findByIdAndDelete(req.params.id);
-    if (!deletedSong) {
+    const song = await Song.findByIdAndDelete(req.params.id);
+    if (!song) {
       return res.status(404).json("Song not found");
     }
     res.status(200).json("Song deleted");
@@ -104,6 +112,7 @@ app.delete("/api/delete/:id", async (req, res) => {
   }
 });
 
+// Aloitetaan "kuuntelemaan" tiettyä porttia joka on määritelty ohjelman alussa
 app.listen(PORT, function () {
   console.log("Kuunnellaan porttia..." + PORT);
 });
